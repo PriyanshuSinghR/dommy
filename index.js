@@ -20,35 +20,54 @@ app.get('/', (req, res) => {
     });
 });
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, './uploads');
-    console.log('saved');
-  },
-  filename: (req, file, cb) => {
-    cb(null, file.originalname);
-  },
-});
+
+const storage = multer.memoryStorage()
 
 const upload = multer({ storage: storage });
 
+function csvArrayToJSON(csvArray) {
+    const headers = csvArray[0];
+  
+    const jsonArray = [];
+  
+    for (let i = 1; i < csvArray.length; i++) {
+      const values = csvArray[i];
+      const obj = {};
+  
+      for (let j = 0; j < headers.length; j++) {
+        obj[headers[j]] = values[j];
+      }
+  
+      jsonArray.push(obj);
+    }
+  
+    return jsonArray;
+  }
+
 app.post('/', upload.single('file'), (req, res, next) => {
-    csv()
-    .fromFile(req.file.path)
-    .then((jsonObj)=>{
-        var army = [];
-        for(var i = 0;i<jsonObj.length;i++){
+    csv({
+        noheader:true,
+        output: "csv"
+    })
+    .fromString(req.file.buffer.toString())
+    .then((csvRow)=>{ 
+        // console.log(csvRow);
+        const csvJson = csvArrayToJSON(csvRow);
+        // console.log(csvJson);
+        var user = [];
+        for(var i = 0;i<csvJson.length;i++){
             var obj={};
-            obj.name=jsonObj[i]['Name'];
-            obj.phone=jsonObj[i]['PhoneNo'];
-            obj.rollNo=jsonObj[i]['RollNo'];
-            army.push(obj);
+            obj.name=csvJson[i]['Name'];
+            obj.phone=csvJson[i]['PhoneNo'];
+            obj.rollNo=csvJson[i]['RollNo'];
+            user.push(obj);
         }
-        userSchema.insertMany(army).then(function(){
+        console.log(user);
+        userSchema.insertMany(user).then(function(){
             res.status(200).send({
                 message: "Successfully Uploaded!"
             });
-        }).catch(function(error){
+    }).catch(function(error){
             res.status(500).send({
                 message: "failure",
                 error
@@ -56,7 +75,7 @@ app.post('/', upload.single('file'), (req, res, next) => {
         });
     }).catch((error) => {
         res.status(500).send({
-            message: "failure",
+            message: error.message,
             error
         });
     })
